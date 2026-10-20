@@ -1,0 +1,43 @@
+###################   Appendix A: Search reference    ###############
+### Total failures:
+index=lab1 "Failed password" | stats count
+
+### Extraction validation (both numbers should be 8154):
+index=lab1 "Failed password"
+| rex "from (?<src_ip>[0-9.]+) port"
+| stats count(src_ip) as with_ip, count as total
+
+### Top 10 sources:
+index=lab1 "Failed password"
+| rex "from (?<src_ip>[0-9.]+) port"
+| stats count by src_ip
+| sort -count
+| head 10
+
+### Unique source count:
+index=lab1 "Failed password"
+| rex "from (?<src_ip>[0-9.]+) port"
+| stats dc(src_ip) as unique_ips
+
+###  Targeted usernames (corrected, includes invalid users):
+index=lab1 "Failed password"
+| rex "for (?:invalid user )?(?<user>\S+) from"
+| top limit=10 user
+
+###  Events per day, split by result:
+index=lab1 password
+| eval result=if(searchmatch("Accepted password"),"success","fail")
+| timechart span=1d count by result
+
+###  Successful logins by user and IP:
+index=lab1 "Accepted password"
+| rex "for (?<user>\S+) from (?<src_ip>[0-9.]+) port"
+| stats count by user, src_ip
+
+###  Failed-then-succeeded overlap:
+index=lab1 password
+| rex "from (?<src_ip>[0-9.]+) port"
+| eval result=if(searchmatch("Accepted password"),"success","fail")
+| stats count(eval(result="fail")) as fails, count(eval(result="success")) as successes by src_ip
+| where fails>0 AND successes>0
+
